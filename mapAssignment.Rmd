@@ -1,0 +1,98 @@
+---
+title: "Developing Data Products - Week 2 Assignment"
+author: ""
+date: ""
+output: html_document
+runtime: shiny_prerendered
+---
+
+```{r setup, include=FALSE}
+library(leaflet)
+library(spData)
+library(sf)
+library(dplyr)
+library(shiny)
+knitr::opts_chunk$set(echo = F, warning=F)
+```
+
+### Created by Anna H on `r format(Sys.Date(), "%A, %B %d, %Y")`  
+Uses **us_states** and **state.x77** datasets and **shiny** and **leaflet** packages
+  
+  
+   
+``` {r pageDisplay}
+fluidPage(
+  # Selector at the top
+  div(style = "text-align: center; width: 300px; margin-left: auto; margin-right: auto; margin-top: 50px; margin-bottom: 20px;",  
+    selectInput(
+      "param",
+      "Color the map by:",
+      choices = c(
+        "Population" = "Population",
+        "Income" = "Income",
+        "Area" = "Area"
+      ),
+      selected = "Population",
+      width = "300px"  # Fixed width for the selector
+    )
+  ),
+  # Map below, made wider
+  leafletOutput("map", width = "100%", height = "600px")
+)
+```
+
+```{r server, context="server"}
+output$map <- renderLeaflet({
+  # Load and prepare data inside the server
+  data("us_states")
+  state_data <- data.frame(state.x77) %>% mutate(State = state.name)
+  state_centers <- data.frame(state.center, State = state.name)
+  
+  usStates <- us_states %>%
+    left_join(state_data, by = c("NAME" = "State")) %>%
+    left_join(state_centers, by = c("NAME" = "State")) %>%
+    st_as_sf()
+  
+  req(input$param)
+  
+  pal <- colorNumeric("Blues", domain = usStates[[input$param]])
+  
+  infoIcon <- icons(  
+  iconUrl = "info.png",  
+  iconWidth = 20,  
+  iconHeight = 20  
+)  
+
+  
+  
+usStates %>%
+  leaflet() %>%
+  addTiles() %>%  # Add base map
+  addPolygons(
+    fillColor = ~pal(usStates[[input$param]]),  # Color by selected variable
+    weight = 1,
+    color = "white",
+    fillOpacity = 0.7,
+    label = ~NAME
+  ) %>%
+  addMarkers(
+    lng = ~x, lat = ~y,  # Use longitude (x) and latitude (y) from merged dataset
+    icon = infoIcon,
+    popup = ~paste0(
+      "<b>", NAME, " in 1975</b><br>",
+      "Area: ", format(round(Area), big.mark=","), " sq.m. <br>",
+      "Population: ", format(Population, big.mark=","), ",000<br>",
+      "Income: $", format(round(Income), big.mark=","), " per capita<br>"
+    )
+  ) %>%
+      addLegend(
+        "bottomright",
+        pal = pal,
+        values = usStates[[input$param]],
+        title = input$param,
+        opacity = 0.7
+      )
+  })
+
+
+```
